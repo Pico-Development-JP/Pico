@@ -3,8 +3,13 @@ define('ROOT_DIR', realpath(__DIR__ . '/../') . '/');
 define('GENERATOR_DIR', realpath(__DIR__ . '/modules/') . '/');
 define('LOG_DIR', realpath(__DIR__ . '/logs/') . '/');
 
+if(count($argv) > 1){
+  $names = array_slice($argv, 1);
+}else{
+  $names = false;
+}
 $gen = new Page_Generator();
-$gen->run();
+$gen->run($names);
 
 class Page_Generator{
 
@@ -14,7 +19,7 @@ class Page_Generator{
     $this->config = $this->get_config();
   }
 
-  public function run(){
+  public function run($modulenames){
     $modules = $this->get_files(GENERATOR_DIR, '.php');  
     $args = array($this->config);
     // Copy from pico.php(load_plugins(), run_hooks())
@@ -22,11 +27,18 @@ class Page_Generator{
       foreach ($modules as $module) {
         include_once($module);
         $module_name = preg_replace("/\\.[^.\\s]{3}$/", '', basename($module));
-        if (class_exists($module_name)) {
+        if (class_exists($module_name) && ($modulenames == false || in_array($module_name, $modulenames))) {
+          echo sprintf("> %s", $module_name);
           $obj = new $module_name;
           if (is_callable(array($obj, "run"))) {
+            echo " -> run()";
+            echo "\n";
             call_user_func_array(array($obj, "run"), $args);
+          }else{
+            echo " method not found skipped";
+            echo "\n";
           }
+          echo "\n";
         }
       }
     }

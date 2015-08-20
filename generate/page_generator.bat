@@ -1,2 +1,2 @@
 @echo off
-php page_generator.php
+php page_generator.php %*
