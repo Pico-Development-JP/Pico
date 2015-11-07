@@ -1,11 +1,12 @@
 <?php 
 define('ROOT_DIR', realpath(__DIR__ . '/../') . '/');
+define('UPDATER_DIR', realpath(__DIR__ . '/modules/') . '/');
 define('LOG_DIR', realpath(__DIR__ . '/logs/') . '/');
 
-$pull = new Pull();
-$pull->run();
+$update = new Update();
+$update->run();
 
-class Pull{
+class Update{
 
   private $config;
 
@@ -15,20 +16,36 @@ class Pull{
 
   public function run(){
     chdir(ROOT_DIR);
-    exec('git pull 2>&1', $output, $ret);
-    $out = implode("\n", $output);
-    $title;
-    $icon;
-    if($ret == 0){
+    $success = FALSE;
+    $msg = "Module Not Found";
+    $args = array($this->config);
+    $p = $_SERVER['QUERY_STRING'];
+    if($p){
+      $modules = $this->get_files(UPDATER_DIR, '.php');  
+      parse_str($p, $request);
+      foreach ($modules as $module) {
+        include_once($module);
+        $module_name = preg_replace("/\\.[^.\\s]{3}$/", '', basename($module));
+        if (class_exists($module_name) && ($module_name == $request["name"])) {
+          $obj = new $module_name;
+          if (is_callable(array($obj, "run"))) {
+            $ret = call_user_func_array(array($obj, "run"), $args);
+            $success = $ret["success"];
+            $msg = $ret["message"];
+          }
+        }
+      }
+    }
+    if($success){
       $title = "Update Success";
       $icon = ":grinning:";
     }else{
       $title = "Update Failed";
       $icon = ":confounded:";
     }
-    $this->sendWebhook($out, $title, $icon);
+    $this->sendWebhook($msg, $title, $icon);
     echo "<h1>$title</h1>\n";
-    echo "<div>$out</div>\n";
+    echo "<div>$msg</div>\n";
   }
   
   /**
@@ -46,7 +63,6 @@ class Pull{
             "username" => $name,
             "icon_emoji" => $icon,
           );
-
       // curl
       $curl = curl_init($hookaddr);
       try{
@@ -96,5 +112,37 @@ class Pull{
     }
 
     return $this->config;
+  }
+
+  /**
+   * Helper function to recusively get all files in a directory
+   *
+   * @param string $directory start directory
+   * @param string $ext optional limit to file extensions
+   * @return array the matched files
+   */
+  protected function get_files($directory, $ext = '')
+  {
+    $array_items = array();
+    if ($handle = opendir($directory)) {
+      while (false !== ($file = readdir($handle))) {
+        if (in_array(substr($file, -1), array('~', '#'))) {
+            continue;
+        }
+        if (preg_match("/^(^\.)/", $file) === 0) {
+          if (is_dir($directory . "/" . $file)) {
+            $array_items = array_merge($array_items, $this->get_files($directory . "/" . $file, $ext));
+          } else {
+            $file = $directory . "/" . $file;
+            if (!$ext || strstr($file, $ext)) {
+                $array_items[] = preg_replace("/\/\//si", "/", $file);
+            }
+          }
+        }
+      }
+      closedir($handle);
+    }
+
+    return $array_items;
   }
 }
