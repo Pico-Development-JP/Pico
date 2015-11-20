@@ -1,6 +1,9 @@
 <Files ~ "^\.(htaccess|htpasswd)$">
 deny from all
 </Files>
+<Files ~ "^\update(_run|_util).php$">
+deny from all
+</Files>
 order deny,allow
 allow from 131.103.20.160/27
 allow from 165.254.145.0/26
