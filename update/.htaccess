@@ -1,7 +1,7 @@
 <Files ~ "^\.(htaccess|htpasswd)$">
 deny from all
 </Files>
-<Files ~ "^\update(_run|_util).php$">
+<Files ~ "^update(_run|_util)\.php$">
 deny from all
 </Files>
 order deny,allow
