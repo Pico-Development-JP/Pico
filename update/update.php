@@ -13,6 +13,7 @@ class Update{
     $msg = "Module Not Found";
     $args = array($util->config);
     $p = $_SERVER['QUERY_STRING'];
+    $found = FALSE;
     if($p){
       $modules = $util->get_files(UPDATER_DIR, '.php', 1);
       parse_str($p, $request);
@@ -26,22 +27,30 @@ class Update{
           if (is_callable(array($obj, "precheck")) &&
             is_callable(array($obj, "run"))) {
             $msg = call_user_func_array(array($obj, "precheck"), $args);
+            $found = $module; 
           }
         }
       }
-      $cmd = sprintf("nohup php %s/update_run.php %s", __DIR__, $module);
-      // 実行
-      header("HTTP/1.1 202 Accepted");
-      if (PHP_OS !== 'WIN32' && PHP_OS !== 'WINNT') {
-        exec($cmd . ' >/dev/null 2>&1 &');
-      } else {
-        $fp = popen('start ' . $cmd, 'r');
-        pclose($fp);
-      }
+      
+      if($found){
+        $cmd = sprintf("nohup php %s/update_run.php %s", __DIR__, $found);
+        // 実行
+        header("HTTP/1.1 202 Accepted");
+        echo "<h1>Update Accepted</h1>\n";
+        if (PHP_OS !== 'WIN32' && PHP_OS !== 'WINNT') {
+          exec($cmd . ' >/dev/null 2>&1 &');
+        } else {
+          $fp = popen('start ' . $cmd, 'r');
+          pclose($fp);
+        }
 
-      exec($cmd);
-      if($msg){
-        $util->sendWebhook($msg, "Update Accepted");
+        if($msg){
+          $util->sendWebhook($msg, "Update Accepted");
+        }
+      }else{
+        $msg = "Module Not Found";
+        echo "<h1>$msg</h1>\n";
+        $util->sendWebhook($msg, "Update Failed");
       }
       return $msg;
     }

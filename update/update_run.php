@@ -20,6 +20,18 @@ class Update_Run{
       $success = $ret["success"];
       $msg = $ret["message"];
     }
+    if(is_callable(array($obj, "get_update_files"))){
+      $ret = call_user_func_array(array($obj, "get_update_files"), array());
+      $flist = array();
+      if($ret){
+        foreach($ret as $entry){
+          list($path, $is_create) = $entry;
+          // TODO: ファイル処理用コマンドをここに入れる
+          array_push($flist, ($is_create ? "+" : "-") . " " . str_replace(ROOT_DIR, "", $path) );
+        }
+        $msg .= "\n--File List--\n" . implode($flist, "\n");
+      }
+    }
     if($success){
       $title = "Update Success";
       $icon = ":grinning:";
@@ -27,10 +39,7 @@ class Update_Run{
       $title = "Update Failed";
       $icon = ":confounded:";
     }
-    var_dump($msg);
     $util->sendWebhook($msg, $title, $icon);
-    echo "<h1>$title</h1>\n";
-    echo "<div>$msg</div>\n";
   }
 
 }
