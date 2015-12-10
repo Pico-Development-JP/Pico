@@ -36,7 +36,6 @@ class Update{
         $cmd = sprintf("nohup php %s/update_run.php %s", __DIR__, $found);
         // 実行
         header("HTTP/1.1 202 Accepted");
-        echo "<h1>Update Accepted</h1>\n";
         if (PHP_OS !== 'WIN32' && PHP_OS !== 'WINNT') {
           exec($cmd . ' >/dev/null 2>&1 &');
         } else {
@@ -46,6 +45,9 @@ class Update{
 
         if($msg){
           $util->sendWebhook($msg, "Update Accepted");
+          echo "$msg";
+        }else{
+          echo "<h1>Update Accepted</h1>\n";
         }
       }else{
         $msg = "Module Not Found";
