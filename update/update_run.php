@@ -8,7 +8,7 @@ if(!empty($argv[1]) && file_exists($argv[1])){
 
 class Update_Run{
 
-  public function run(string $file){
+  public function run($file){
     chdir(ROOT_DIR);
     $util = Update_Util::getInstance();
     include_once($file);
