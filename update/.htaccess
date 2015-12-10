@@ -5,8 +5,14 @@ deny from all
 deny from all
 </Files>
 order deny,allow
+# Bitbucket
 allow from 131.103.20.160/27
 allow from 165.254.145.0/26
 allow from 104.192.143.0/24
+# Github
 allow from 192.30.252.0/22
+# Dropbox
+allow from 199.47.216.0/22
+allow from 108.160.160.0/20
+allow from 205.189.0.0/24
 deny from all 
