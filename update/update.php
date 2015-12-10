@@ -14,7 +14,7 @@ class Update{
     $args = array($util->config);
     $p = $_SERVER['QUERY_STRING'];
     if($p){
-      $modules = $util->get_files(UPDATER_DIR, '.php');
+      $modules = $util->get_files(UPDATER_DIR, '.php', 1);
       parse_str($p, $request);
       $module = "";
       // 検索

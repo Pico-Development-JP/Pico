@@ -93,7 +93,7 @@ class Update_Util{
    * @param string $ext optional limit to file extensions
    * @return array the matched files
    */
-  public function get_files($directory, $ext = '')
+  public function get_files($directory, $ext = '', $depth = 999)
   {
     $array_items = array();
     if ($handle = opendir($directory)) {
@@ -102,8 +102,8 @@ class Update_Util{
             continue;
         }
         if (preg_match("/^(^\.)/", $file) === 0) {
-          if (is_dir($directory . "/" . $file)) {
-            $array_items = array_merge($array_items, $this->get_files($directory . "/" . $file, $ext));
+          if (is_dir($directory . "/" . $file) && $depth > 0) {
+            $array_items = array_merge($array_items, $this->get_files($directory . "/" . $file, $ext, $depth - 1));
           } else {
             $file = $directory . "/" . $file;
             if (!$ext || strstr($file, $ext)) {
