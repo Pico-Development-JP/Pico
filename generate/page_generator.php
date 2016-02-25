@@ -20,20 +20,22 @@ class Page_Generator extends Pico {
     // Copy from pico.php(load_plugins(), run_hooks())
     if (!empty($modules)) {
       foreach ($modules as $module) {
-        include_once($module);
-        $module_name = preg_replace("/\\.[^.\\s]{3}$/", '', basename($module));
-        if (class_exists($module_name) && ($modulenames == false || in_array($module_name, $modulenames))) {
-          echo sprintf("> %s", $module_name);
-          $obj = new $module_name;
-          if (is_callable(array($obj, "run"))) {
-            echo " -> run()";
-            echo "\n";
-            call_user_func_array(array($obj, "run"), $args);
-          }else{
-            echo " method not found skipped";
+        if(strpos($module, "vendor") === false){
+          include_once($module);
+          $module_name = preg_replace("/\\.[^.\\s]{3}$/", '', basename($module));
+          if (class_exists($module_name) && ($modulenames == false || in_array($module_name, $modulenames))) {
+            echo sprintf("> %s", $module_name);
+            $obj = new $module_name;
+            if (is_callable(array($obj, "run"))) {
+              echo " -> run()";
+              echo "\n";
+              call_user_func_array(array($obj, "run"), $args);
+            }else{
+              echo " method not found skipped";
+              echo "\n";
+            }
             echo "\n";
           }
-          echo "\n";
         }
       }
     }
