@@ -2,23 +2,9 @@
 define('ROOT_DIR', realpath(__DIR__ . '/../') . '/');
 define('UPDATER_DIR', realpath(__DIR__ . '/modules/') . '/');
 define('LOG_DIR', realpath(__DIR__ . '/logs/') . '/');
+require_once(ROOT_DIR . "lib/Pico.php");
 
-
-class Update_Util{
-
-  private static $instance;
-
-  public $config;
-
-  private function __construct(){
-    $this->config = $this->get_config();
-  }
-
-  public static function getInstance()
-  {
-   if (!self::$instance) self::$instance = new Update_Util();
-   return self::$instance;
-  }
+class Update_Util extends Pico{
 
   /**
    * Webhookに送信を行う内部関数
@@ -28,7 +14,7 @@ class Update_Util{
    *  @param string $icon ... アイコン
    */
   public function sendWebhook($text, $name, $icon = ":email") {
-    $hookaddr = $this->config["webhook"]["pull_notification"];
+    $hookaddr = $this->getConfig()["webhook"]["pull_notification"];
     if($hookaddr){
       $payload = array(
             "text" => $text,
@@ -53,68 +39,5 @@ class Update_Util{
       }
       curl_close($curl);
     }
-  }
-
-  // Copy from pico.php
-
-  /**
-   * Loads the config
-   *
-   * @return array $config an array of config values
-   */
-  private function get_config()
-  {
-
-    $config = @include_once(ROOT_DIR . 'config.php');
-
-    $defaults = array(
-      'theme' => 'default',
-      'date_format' => '%D %T',
-      'twig_config' => array('cache' => false, 'autoescape' => false, 'debug' => false),
-      'pages_order_by' => 'alpha',
-      'pages_order' => 'asc',
-      'excerpt_length' => 50,
-      'content_dir' => 'content-sample/',
-    );
-
-    if (is_array($config)) {
-      $config = array_merge($defaults, $config);
-    } else {
-      $config = $defaults;
-    }
-
-    return $config;
-  }
-
-  /**
-   * Helper function to recusively get all files in a directory
-   *
-   * @param string $directory start directory
-   * @param string $ext optional limit to file extensions
-   * @return array the matched files
-   */
-  public function get_files($directory, $ext = '', $depth = 999)
-  {
-    $array_items = array();
-    if ($handle = opendir($directory)) {
-      while (false !== ($file = readdir($handle))) {
-        if (in_array(substr($file, -1), array('~', '#'))) {
-            continue;
-        }
-        if (preg_match("/^(^\.)/", $file) === 0) {
-          if (is_dir($directory . "/" . $file) && $depth > 0) {
-            $array_items = array_merge($array_items, $this->get_files($directory . "/" . $file, $ext, $depth - 1));
-          } else {
-            $file = $directory . "/" . $file;
-            if (!$ext || strstr($file, $ext)) {
-                $array_items[] = preg_replace("/\/\//si", "/", $file);
-            }
-          }
-        }
-      }
-      closedir($handle);
-    }
-
-    return $array_items;
   }
 }
