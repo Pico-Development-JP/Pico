@@ -27,6 +27,13 @@
 class Pico
 {
     /**
+     * Pico version
+     *
+     * @var string
+     */
+    const VERSION = '1.1.0-dev';
+
+    /**
      * Sort files in alphabetical ascending order
      *
      * @see Pico::getFiles()
@@ -383,6 +390,7 @@ class Pico
      * - 60 to 79: Plugins hooking into template or markdown parsing
      * - 80 to 99: Plugins using the `onPageRendered` event
      *
+     * @see    Pico::loadPlugin()
      * @see    Pico::getPlugin()
      * @see    Pico::getPlugins()
      * @return void
@@ -390,10 +398,18 @@ class Pico
      */
     protected function loadPlugins()
     {
+        // scope isolated require_once()
+        $includeClosure = function ($pluginFile) {
+            require_once($pluginFile);
+        };
+        if (PHP_VERSION_ID >= 50400) {
+            $includeClosure = $includeClosure->bindTo(null);
+        }
+
         $this->plugins = array();
         $pluginFiles = $this->getFiles($this->getPluginsDir(), '.php');
         foreach ($pluginFiles as $pluginFile) {
-            require_once($pluginFile);
+            $includeClosure($pluginFile);
 
             $className = preg_replace('/^[0-9]+-/', '', basename($pluginFile, '.php'));
             if (class_exists($className)) {
@@ -404,9 +420,56 @@ class Pico
                 $this->plugins[$className] = $plugin;
             } else {
                 // TODO: breaks backward compatibility
-                //throw new RuntimeException("Unable to load plugin '".$className."'");
+                /*
+                $pluginFileName = substr($pluginFile, strlen($this->getPluginsDir()));
+                throw new RuntimeException(
+                    "Unable to load plugin '" . $className . "' "
+                    . "from '" . $pluginFileName . "'"
+                );
+                */
             }
         }
+    }
+
+    /**
+     * Manually loads a plugin
+     *
+     * Manually loaded plugins must implement {@see PicoPluginInterface}.
+     *
+     * @see    Pico::loadPlugins()
+     * @see    Pico::getPlugin()
+     * @see    Pico::getPlugins()
+     * @param  PicoPluginInterface|string $plugin either the class name of a
+     *     plugin to instantiate or a plugin instance
+     * @return PicoPluginInterface                instance of the loaded plugin
+     * @throws RuntimeException                   thrown when a plugin couldn't
+     *     be loaded
+     */
+    public function loadPlugin($plugin)
+    {
+        if (!is_object($plugin)) {
+            $className = (string) $plugin;
+            if (class_exists($className)) {
+                $plugin = new $className($this);
+            } else {
+                throw new RuntimeException("Unable to load plugin '" . $className . "':  Class not found");
+            }
+        }
+
+        $className = get_class($plugin);
+        if (!is_a($plugin, 'PicoPluginInterface')) {
+            throw new RuntimeException(
+                "Unable to load plugin '" . $className . "': "
+                . "Manually loaded plugins must implement 'PicoPluginInterface'"
+            );
+        }
+
+        if ($this->plugins === null) {
+            $this->plugins = array();
+        }
+        $this->plugins[$className] = $plugin;
+
+        return $plugin;
     }
 
     /**
@@ -443,7 +506,15 @@ class Pico
     }
 
     /**
-     * Loads the config.php from Pico::$configDir
+     * Loads the config.php and any *.config.php from Pico::$configDir
+     *
+     * After loading the {@path "config/config.php"}, Pico proceeds with any
+     * existing `config/*.config.php` in alphabetical order. The file order is
+     * crucial: Config values which has been set already, cannot be overwritten
+     * by a succeeding file. This is also true for arrays, i.e. when specifying
+     * `$config['test'] = array('foo' => 'bar')` in `config/a.config.php` and
+     * `$config['test'] = array('baz' => 42)` in `config/b.config.php`,
+     * `$config['test']['baz']` will be undefined!
      *
      * @see    Pico::setConfig()
      * @see    Pico::getConfig()
@@ -451,12 +522,33 @@ class Pico
      */
     protected function loadConfig()
     {
-        $config = null;
-        if (file_exists($this->getConfigDir() . 'config.php')) {
-            require($this->getConfigDir() . 'config.php');
+        // scope isolated require()
+        $includeClosure = function ($configFile) {
+            require($configFile);
+            return (isset($config) && is_array($config)) ? $config : array();
+        };
+        if (PHP_VERSION_ID >= 50400) {
+            $includeClosure = $includeClosure->bindTo(null);
         }
 
-        $defaultConfig = array(
+        // load main config file (config/config.php)
+        $this->config = is_array($this->config) ? $this->config : array();
+        if (file_exists($this->getConfigDir() . 'config.php')) {
+            $this->config += $includeClosure($this->getConfigDir() . 'config.php');
+        }
+
+        // merge $config of config/*.config.php files
+        $configFiles = glob($this->getConfigDir() . '?*.config.php', GLOB_MARK);
+        if ($configFiles) {
+            foreach ($configFiles as $configFile) {
+                if (substr($configFile, -1) !== '/') {
+                    $this->config += $includeClosure($configFile);
+                }
+            }
+        }
+
+        // merge default config
+        $this->config += array(
             'site_title' => 'Pico',
             'base_url' => '',
             'rewrite_url' => null,
@@ -469,9 +561,6 @@ class Pico
             'content_ext' => '.md',
             'timezone' => ''
         );
-
-        $this->config = is_array($this->config) ? $this->config : array();
-        $this->config += is_array($config) ? $config + $defaultConfig : $defaultConfig;
 
         if (empty($this->config['base_url'])) {
             $this->config['base_url'] = $this->getBaseUrl();
@@ -609,8 +698,11 @@ class Pico
      */
     protected function discoverRequestFile()
     {
+        $contentDir = $this->getConfig('content_dir');
+        $contentExt = $this->getConfig('content_ext');
+
         if (empty($this->requestUrl)) {
-            $this->requestFile = $this->getConfig('content_dir') . 'index' . $this->getConfig('content_ext');
+            $this->requestFile = $contentDir . 'index' . $contentExt;
         } else {
             // prevent content_dir breakouts using malicious request URLs
             // we don't use realpath() here because we neither want to check for file existance
@@ -632,24 +724,24 @@ class Pico
             }
 
             if (empty($requestFileParts)) {
-                $this->requestFile = $this->getConfig('content_dir') . 'index' . $this->getConfig('content_ext');
+                $this->requestFile = $contentDir . 'index' . $contentExt;
                 return;
             }
 
             // discover the content file to serve
             // Note: $requestFileParts neither contains a trailing nor a leading slash
-            $this->requestFile = $this->getConfig('content_dir') . implode('/', $requestFileParts);
+            $this->requestFile = $contentDir . implode('/', $requestFileParts);
             if (is_dir($this->requestFile)) {
                 // if no index file is found, try a accordingly named file in the previous dir
                 // if this file doesn't exist either, show the 404 page, but assume the index
                 // file as being requested (maintains backward compatibility to Pico < 1.0)
-                $indexFile = $this->requestFile . '/index' . $this->getConfig('content_ext');
-                if (file_exists($indexFile) || !file_exists($this->requestFile . $this->getConfig('content_ext'))) {
+                $indexFile = $this->requestFile . '/index' . $contentExt;
+                if (file_exists($indexFile) || !file_exists($this->requestFile . $contentExt)) {
                     $this->requestFile = $indexFile;
                     return;
                 }
             }
-            $this->requestFile .= $this->getConfig('content_ext');
+            $this->requestFile .= $contentExt;
         }
     }
 
@@ -687,18 +779,29 @@ class Pico
      */
     public function load404Content($file)
     {
-        $errorFileDir = substr($file, strlen($this->getConfig('content_dir')));
-        do {
-            $errorFileDir = dirname($errorFileDir);
-            $errorFile = $errorFileDir . '/404' . $this->getConfig('content_ext');
-        } while (!file_exists($this->getConfig('content_dir') . $errorFile) && ($errorFileDir !== '.'));
+        $contentDir = $this->getConfig('content_dir');
+        $contentDirLength = strlen($contentDir);
+        $contentExt = $this->getConfig('content_ext');
 
-        if (!file_exists($this->getConfig('content_dir') . $errorFile)) {
-            $errorFile = ($errorFileDir === '.') ? '404' . $this->getConfig('content_ext') : $errorFile;
-            throw new RuntimeException('Required "' . $this->getConfig('content_dir') . $errorFile . '" not found');
+        if (substr($file, 0, $contentDirLength) === $contentDir) {
+            $errorFileDir = substr($file, $contentDirLength);
+
+            while ($errorFileDir !== '.') {
+                $errorFileDir = dirname($errorFileDir);
+                $errorFile = $errorFileDir . '/404' . $contentExt;
+
+                if (file_exists($contentDir . $errorFile)) {
+                    return $this->loadFileContent($contentDir . $errorFile);
+                }
+            }
+        } elseif (file_exists($contentDir . '404' . $contentExt)) {
+            // provided that the requested file is not in the regular
+            // content directory, fallback to Pico's global `404.md`
+            return $this->loadFileContent($contentDir . '404' . $contentExt);
         }
 
-        return $this->loadFileContent($this->getConfig('content_dir') . $errorFile);
+        $errorFile = $contentDir . '404' . $contentExt;
+        throw new RuntimeException('Required "' . $errorFile . '" not found');
     }
 
     /**
@@ -845,36 +948,37 @@ class Pico
             . "(?:(.*?)(?:\r)?\n)?(?(2)\*\/|---)[[:blank:]]*(?:(?:\r)?\n|$)/s";
         $content = preg_replace($metaHeaderPattern, '', $rawContent, 1);
 
+        // replace %version%
+        $variables['%version%'] = static::VERSION;
+
         // replace %site_title%
-        $content = str_replace('%site_title%', $this->getConfig('site_title'), $content);
+        $variables['%site_title%'] = $this->getConfig('site_title');
 
         // replace %base_url%
         if ($this->isUrlRewritingEnabled()) {
             // always use `%base_url%?sub/page` syntax for internal links
             // we'll replace the links accordingly, depending on enabled rewriting
-            $content = str_replace('%base_url%?', $this->getBaseUrl(), $content);
+            $variables['%base_url%?'] = $this->getBaseUrl();
         } else {
             // actually not necessary, but makes the URL look a little nicer
-            $content = str_replace('%base_url%?', $this->getBaseUrl() . '?', $content);
+            $variables['%base_url%?'] = $this->getBaseUrl() . '?';
         }
-        $content = str_replace('%base_url%', rtrim($this->getBaseUrl(), '/'), $content);
+        $variables['%base_url%'] = rtrim($this->getBaseUrl(), '/');
 
         // replace %theme_url%
         $themeUrl = $this->getBaseUrl() . basename($this->getThemesDir()) . '/' . $this->getConfig('theme');
-        $content = str_replace('%theme_url%', $themeUrl, $content);
+        $variables['%theme_url%'] = $themeUrl;
 
         // replace %meta.*%
         if (!empty($meta)) {
-            $metaKeys = $metaValues = array();
             foreach ($meta as $metaKey => $metaValue) {
                 if (is_scalar($metaValue) || ($metaValue === null)) {
-                    $metaKeys[] = '%meta.' . $metaKey . '%';
-                    $metaValues[] = strval($metaValue);
+                    $variables['%meta.' . $metaKey . '%'] = strval($metaValue);
                 }
             }
-            $content = str_replace($metaKeys, $metaValues, $content);
         }
 
+        $content = str_replace(array_keys($variables), $variables, $content);
         return $content;
     }
 
@@ -931,25 +1035,33 @@ class Pico
      */
     protected function readPages()
     {
+        $contentDir = $this->getConfig('content_dir');
+        $contentDirLength = strlen($contentDir);
+        $contentExt = $this->getConfig('content_ext');
+        $contentExtLength = strlen($contentExt);
+
         $this->pages = array();
-        $files = $this->getFiles($this->getConfig('content_dir'), $this->getConfig('content_ext'), Pico::SORT_NONE);
+        $files = $this->getFiles($contentDir, $contentExt, Pico::SORT_NONE);
         foreach ($files as $i => $file) {
             // skip 404 page
-            if (basename($file) === '404' . $this->getConfig('content_ext')) {
+            if (basename($file) === '404' . $contentExt) {
                 unset($files[$i]);
                 continue;
             }
 
-            $id = substr($file, strlen($this->getConfig('content_dir')), -strlen($this->getConfig('content_ext')));
+            $id = substr($file, $contentDirLength, -$contentExtLength);
+
+            // trigger onSinglePageLoading event
+            $this->triggerEvent('onSinglePageLoading', array(&$id));
 
             // drop inaccessible pages (e.g. drop "sub.md" if "sub/index.md" exists)
-            $conflictFile = $this->getConfig('content_dir') . $id . '/index' . $this->getConfig('content_ext');
+            $conflictFile = $contentDir . $id . '/index' . $contentExt;
             if (in_array($conflictFile, $files, true)) {
                 continue;
             }
 
             $url = $this->getPageUrl($id);
-            if ($file != $this->requestFile) {
+            if ($file !== $this->requestFile) {
                 $rawContent = file_get_contents($file);
 
                 $headers = $this->getMetaHeaders();
@@ -986,10 +1098,12 @@ class Pico
 
             unset($rawContent, $meta);
 
-            // trigger event
+            // trigger onSinglePageLoaded event
             $this->triggerEvent('onSinglePageLoaded', array(&$page));
 
-            $this->pages[$id] = $page;
+            if ($page !== null) {
+                $this->pages[$id] = $page;
+            }
         }
     }
 
@@ -1060,8 +1174,15 @@ class Pico
         $pageIds = array_keys($this->pages);
 
         $contentDir = $this->getConfig('content_dir');
-        $contentExt = $this->getConfig('content_ext');
-        $currentPageId = substr($this->requestFile, strlen($contentDir), -strlen($contentExt));
+        $contentDirLength = strlen($contentDir);
+
+        // the requested file is not in the regular content directory, therefore its ID
+        // isn't specified and it's impossible to determine the current page automatically
+        if (substr($this->requestFile, 0, $contentDirLength) !== $contentDir) {
+            return;
+        }
+
+        $currentPageId = substr($this->requestFile, $contentDirLength, -strlen($this->getConfig('content_ext')));
         $currentPageIndex = array_search($currentPageId, $pageIds);
         if ($currentPageIndex !== false) {
             $this->currentPage = &$this->pages[$currentPageId];
@@ -1193,6 +1314,7 @@ class Pico
             'current_page' => $this->currentPage,
             'next_page' => $this->nextPage,
             'is_front_page' => ($this->requestFile === $frontPage),
+            'version' => static::VERSION
         );
     }
 
@@ -1221,7 +1343,7 @@ class Pico
             $protocol . "://" . $_SERVER['HTTP_HOST']
             . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/';
 
-        return $this->getConfig('base_url');
+        return $this->config['base_url'];
     }
 
     /**
@@ -1237,7 +1359,7 @@ class Pico
         }
 
         $this->config['rewrite_url'] = (isset($_SERVER['PICO_URL_REWRITING']) && $_SERVER['PICO_URL_REWRITING']);
-        return $this->getConfig('rewrite_url');
+        return $this->config['rewrite_url'];
     }
 
     /**
@@ -1297,7 +1419,7 @@ class Pico
             foreach ($files as $file) {
                 // exclude hidden files/dirs starting with a .; this also excludes the special dirs . and ..
                 // exclude files ending with a ~ (vim/nano backup) or # (emacs backup)
-                if ((substr($file, 0, 1) === '.') || in_array(substr($file, -1), array('~', '#'))) {
+                if (($file[0] === '.') || in_array(substr($file, -1), array('~', '#'))) {
                     continue;
                 }
 
@@ -1328,7 +1450,7 @@ class Pico
                 $path = $this->getRootDir() . $path;
             }
         } else {
-            if (substr($path, 0, 1) !== '/') {
+            if ($path[0] !== '/') {
                 $path = $this->getRootDir() . $path;
             }
         }
@@ -1340,6 +1462,7 @@ class Pico
      *
      * Deprecated events (as used by plugins not implementing
      * {@link PicoPluginInterface}) are triggered by {@link PicoDeprecated}.
+     * You MUST NOT trigger events of Pico's core with a plugin!
      *
      * @see    PicoPluginInterface
      * @see    AbstractPicoPlugin
@@ -1348,7 +1471,7 @@ class Pico
      * @param  array  $params    optional parameters to pass
      * @return void
      */
-    protected function triggerEvent($eventName, array $params = array())
+    public function triggerEvent($eventName, array $params = array())
     {
         if (!empty($this->plugins)) {
             foreach ($this->plugins as $plugin) {

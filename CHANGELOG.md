@@ -1,14 +1,22 @@
 Pico Changelog
 ==============
 
-### Version 1.0.1
+### Version 1.0.2
 Released: -
+
+```
+* [Fixed] Check dependencies when a plugin is enabled by default
+```
+
+### Version 1.0.1
+Released: 2016-02-27
 
 ```
 * [Changed] Improve documentation
 * [Changed] Replace `version_compare()` with `PHP_VERSION_ID` in
             `index.php.dist` (available since PHP 5.2.7)
 * [Fixed] Suppress PHP warning when using `date_default_timezone_get()`
+* [Fixed] #329: Force Apache's `MultiViews` feature to be disabled
 ```
 
 ### Version 1.0.0

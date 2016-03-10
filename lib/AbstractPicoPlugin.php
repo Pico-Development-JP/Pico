@@ -74,9 +74,17 @@ abstract class AbstractPicoPlugin implements PicoPluginInterface
             if ($pluginEnabled !== null) {
                 $this->setEnabled($pluginEnabled);
             } else {
-                $pluginConfig = $this->getConfig(get_called_class());
-                if (is_array($pluginConfig) && isset($pluginConfig['enabled'])) {
-                    $this->setEnabled($pluginConfig['enabled']);
+                $pluginEnabled = $this->getPluginConfig('enabled');
+                if ($pluginEnabled !== null) {
+                    $this->setEnabled($pluginEnabled);
+                } elseif ($this->enabled) {
+                    // make sure dependencies are already fulfilled,
+                    // otherwise the plugin needs to be enabled manually
+                    try {
+                        $this->checkDependencies(false);
+                    } catch (RuntimeException $e) {
+                        $this->enabled = false;
+                    }
                 }
             }
         }
@@ -128,6 +136,29 @@ abstract class AbstractPicoPlugin implements PicoPluginInterface
     }
 
     /**
+     * Returns either the value of the specified plugin config variable or
+     * the config array
+     *
+     * @param  string $configName optional name of a config variable
+     * @return mixed              returns either the value of the named plugin
+     *     config variable, null if the config variable doesn't exist or the
+     *     plugin's config array if no config name was supplied
+     */
+    protected function getPluginConfig($configName = null)
+    {
+        $pluginConfig = $this->getConfig(get_called_class());
+        if ($pluginConfig) {
+            if ($configName === null) {
+                return $pluginConfig;
+            } elseif (isset($pluginConfig[$configName])) {
+                return $pluginConfig[$configName];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Passes all not satisfiable method calls to Pico
      *
      * @see    Pico
@@ -162,7 +193,7 @@ abstract class AbstractPicoPlugin implements PicoPluginInterface
                 $plugin = $this->getPlugin($pluginName);
             } catch (RuntimeException $e) {
                 throw new RuntimeException(
-                    "Unable to enable plugin '" . get_called_class() . "':"
+                    "Unable to enable plugin '" . get_called_class() . "': "
                     . "Required plugin '" . $pluginName . "' not found"
                 );
             }
@@ -174,13 +205,13 @@ abstract class AbstractPicoPlugin implements PicoPluginInterface
                         $plugin->setEnabled(true, true, true);
                     } else {
                         throw new RuntimeException(
-                            "Unable to enable plugin '" . get_called_class() . "':"
+                            "Unable to enable plugin '" . get_called_class() . "': "
                             . "Required plugin '" . $pluginName . "' was disabled manually"
                         );
                     }
                 } else {
                     throw new RuntimeException(
-                        "Unable to enable plugin '" . get_called_class() . "':"
+                        "Unable to enable plugin '" . get_called_class() . "': "
                         . "Required plugin '" . $pluginName . "' is disabled"
                     );
                 }
