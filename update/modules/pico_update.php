@@ -2,6 +2,9 @@
 
 class Pico_Update{
 
+  function __construct($owner){
+  }
+
   public function precheck(){
     return "";
   }

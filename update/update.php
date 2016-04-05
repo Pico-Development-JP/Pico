@@ -22,7 +22,7 @@ class Update extends Update_Util{
           include_once($module);
           $module_name = preg_replace("/\\.[^.\\s]{3}$/", '', basename($module));
           if (class_exists($module_name) && ($module_name == $request["name"])) {
-            $obj = new $module_name;
+            $obj = new $module_name($this);
             if (is_callable(array($obj, "precheck")) &&
               is_callable(array($obj, "run"))) {
               $msg = call_user_func_array(array($obj, "precheck"), $args);

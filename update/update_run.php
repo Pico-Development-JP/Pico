@@ -10,10 +10,9 @@ class Update_Run extends Update_Util{
       include_once($file);
 
       $module_name = preg_replace("/\\.[^.\\s]{3}$/", '', basename($file));
-      $args = array($this->getConfig());
-      $obj = new $module_name;
+      $obj = new $module_name($this);
       if (is_callable(array($obj, "run"))) {
-        $ret = call_user_func_array(array($obj, "run"), $args);
+        $ret = call_user_func_array(array($obj, "run"), array());
         $success = $ret["success"];
         $msg = $ret["message"];
       }
