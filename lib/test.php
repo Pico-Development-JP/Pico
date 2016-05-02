@@ -28,8 +28,6 @@ elseif(is_file($root.'/../../../vendor/autoload.php')) {
   die("Cannot find `vendor/autoload.php`. Run `composer install`.");
 }
 
-chdir($root);
-
 class PicoTest extends Pico {
   public function __construct($rootDir, $configDir, $pluginsDir, $themesDir) {
     parent::__construct($rootDir, $configDir, $pluginsDir, $themesDir);
@@ -39,7 +37,7 @@ class PicoTest extends Pico {
 
 // エラーが煩わしいので仮に。
 $_SERVER['SERVER_PORT'] = 80;
-$_SERVER['HTTP_HOST'] = "http://localhost/";
+$_SERVER['HTTP_HOST'] = "";
 
 // instance Pico
 $pico = new PicoTest(
