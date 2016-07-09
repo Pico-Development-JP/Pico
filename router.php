@@ -7,6 +7,7 @@ if (isset($_SERVER['REQUEST_URI']) && !file_exists(__DIR__ . $_SERVER['REQUEST_U
     $qs = str_replace($_SERVER['QUERY_STRING'], "", $qs);
     $qs .= $_SERVER['QUERY_STRING'];
   }
+  $qs = preg_replace("/.*\?/", "", $qs);
   // クエリ文字列として追加
   $_SERVER['QUERY_STRING'] = $qs;
 }
