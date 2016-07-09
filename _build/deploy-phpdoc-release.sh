@@ -6,8 +6,11 @@ fi
 if [ "$DEPLOY_VERSION_BADGE" != "true" ]; then
     echo "Skipping version badge deployment because it has been disabled"
 fi
-if [ "$DEPLOY_PHPDOC_RELEASES" != "true" ] || [ "$DEPLOY_VERSION_BADGE" != "true" ]; then
-    [ "$DEPLOY_PHPDOC_RELEASES" != "true" ] && [ "$DEPLOY_VERSION_BADGE" != "true" ] && exit 0 || echo
+if [ "$DEPLOY_VERSION_FILE" != "true" ]; then
+    echo "Skipping version file deployment because it has been disabled"
+fi
+if [ "$DEPLOY_PHPDOC_RELEASES" != "true" ] || [ "$DEPLOY_VERSION_BADGE" != "true" ] || [ "$DEPLOY_VERSION_FILE" != "true" ]; then
+    [ "$DEPLOY_PHPDOC_RELEASES" != "true" ] && [ "$DEPLOY_VERSION_BADGE" != "true" ] && [ "$DEPLOY_VERSION_FILE" != "true" ] && exit 0 || echo
 fi
 
 DEPLOYMENT_ID="${TRAVIS_BRANCH//\//_}"
@@ -32,13 +35,18 @@ if [ "$DEPLOY_PHPDOC_RELEASES" == "true" ]; then
         "Pico 1.0 API Documentation ($TRAVIS_TAG)"
     [ $? -eq 0 ] || exit 1
 
-    # commit phpDocs
     if [ -n "$(git status --porcelain "$DEPLOYMENT_DIR/phpDoc/$DEPLOYMENT_ID")" ]; then
+        # update phpDoc list
+        update-phpdoc-list.sh \
+            "$DEPLOYMENT_DIR/_data/phpDoc.yml" \
+            "$TRAVIS_TAG" "version" "Pico ${TRAVIS_TAG#v}" "$(date +%s)"
+
+        # commit phpDocs
         echo "Committing phpDoc changes..."
-        git add "$DEPLOYMENT_DIR/phpDoc/$DEPLOYMENT_ID"
+        git add "$DEPLOYMENT_DIR/phpDoc/$DEPLOYMENT_ID" "$DEPLOYMENT_DIR/_data/phpDoc.yml"
         git commit \
             --message="Update phpDocumentor class docs for $TRAVIS_TAG" \
-            "$DEPLOYMENT_DIR/phpDoc/$DEPLOYMENT_ID"
+            "$DEPLOYMENT_DIR/phpDoc/$DEPLOYMENT_ID" "$DEPLOYMENT_DIR/_data/phpDoc.yml"
         [ $? -eq 0 ] || exit 1
         echo
     fi
@@ -51,11 +59,27 @@ if [ "$DEPLOY_VERSION_BADGE" == "true" ]; then
         "release" "$TRAVIS_TAG" "blue"
 
     # commit version badge
-    echo "Committing changes..."
+    echo "Committing version badge..."
     git add "$DEPLOYMENT_DIR/badges/pico-version.svg"
     git commit \
         --message="Update version badge for $TRAVIS_TAG" \
         "$DEPLOYMENT_DIR/badges/pico-version.svg"
+    [ $? -eq 0 ] || exit 1
+    echo
+fi
+
+# update version file
+if [ "$DEPLOY_VERSION_FILE" == "true" ]; then
+    update-version-file.sh \
+        "$DEPLOYMENT_DIR/_data/version.yml" \
+        "${TRAVIS_TAG#v}"
+
+    # commit version file
+    echo "Committing version file..."
+    git add "$DEPLOYMENT_DIR/_data/version.yml"
+    git commit \
+        --message="Update version file for $TRAVIS_TAG" \
+        "$DEPLOYMENT_DIR/_data/version.yml"
     [ $? -eq 0 ] || exit 1
     echo
 fi
