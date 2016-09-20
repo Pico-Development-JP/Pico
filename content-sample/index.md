@@ -307,9 +307,9 @@ location ~ /pico/(\.htaccess|\.git|config|content|content-sample|lib|vendor|CHAN
     return 404;
 }
 
-location ~ ^/pico(.*) {
+location /pico/ {
     index index.php;
-    try_files $uri $uri/ /pico/index.php?$1&$args;
+    try_files $uri $uri/ /pico/index.php$is_args$args;
 }
 ```
 

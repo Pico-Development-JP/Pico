@@ -24,7 +24,7 @@
  * @author  Daniel Rudolf
  * @link    http://picocms.org
  * @license http://opensource.org/licenses/MIT The MIT License
- * @version 1.0
+ * @version 1.1
  */
 class Pico
 {
@@ -34,6 +34,13 @@ class Pico
      * @var string
      */
     const VERSION = '1.1.0-dev';
+
+    /**
+     * Pico version ID
+     *
+     * @var int
+     */
+    const VERSION_ID = 10100;
 
     /**
      * Sort files in alphabetical ascending order
@@ -301,7 +308,7 @@ class Pico
         $this->triggerEvent('onRequestUrl', array(&$this->requestUrl));
 
         // discover requested file
-        $this->discoverRequestFile();
+        $this->requestFile = $this->resolveFilePath($this->requestUrl);
         $this->triggerEvent('onRequestFile', array(&$this->requestFile));
 
         // load raw file content
@@ -586,6 +593,14 @@ class Pico
             $this->config['content_dir'] = $this->getAbsolutePath($this->config['content_dir']);
         }
 
+        if (empty($this->config['theme_url'])) {
+            $this->config['theme_url'] = $this->getBaseThemeUrl();
+        } elseif (preg_match('#^[A-Za-z][A-Za-z0-9+\-.]*://#', $this->config['theme_url'])) {
+            $this->config['theme_url'] = rtrim($this->config['theme_url'], '/') . '/';
+        } else {
+            $this->config['theme_url'] = $this->getBaseUrl() . rtrim($this->config['theme_url'], '/') . '/';
+        }
+
         if (empty($this->config['timezone'])) {
             // explicitly set a default timezone to prevent a E_NOTICE
             // when no timezone is set; the `date_default_timezone_get()`
@@ -644,13 +659,19 @@ class Pico
     /**
      * Evaluates the requested URL
      *
-     * Pico 1.0 uses the `QUERY_STRING` routing method (e.g. `/pico/?sub/page`)
+     * Pico uses the `QUERY_STRING` routing method (e.g. `/pico/?sub/page`)
      * to support SEO-like URLs out-of-the-box with any webserver. You can
-     * still setup URL rewriting (e.g. using `mod_rewrite` on Apache) to
-     * basically remove the `?` from URLs, but your rewritten URLs must follow
-     * the new `QUERY_STRING` principles. URL rewriting requires some special
-     * configuration on your webserver, but this should be "basic work" for
-     * any webmaster...
+     * still setup URL rewriting to basically remove the `?` from URLs.
+     * However, URL rewriting requires some special configuration of your
+     * webserver, but this should be "basic work" for any webmaster...
+     *
+     * With Pico 1.0 you had to setup URL rewriting (e.g. using `mod_rewrite`
+     * on Apache) in a way that rewritten URLs follow the `QUERY_STRING`
+     * principles. Starting with version 1.1, Pico additionally supports the
+     * `REQUEST_URI` routing method, what allows you to simply rewrite all
+     * requests to just `index.php`. Pico then reads the requested page from
+     * the `REQUEST_URI` environment variable provided by the webserver.
+     * Please note that `QUERY_STRING` takes precedence over `REQUEST_URI`.
      *
      * Pico 0.9 and older required Apache with `mod_rewrite` enabled, thus old
      * plugins, templates and contents may require you to enable URL rewriting
@@ -663,23 +684,43 @@ class Pico
      * enabled URL rewriting. In content files you can use the `%base_url%`
      * variable; e.g. `%base_url%?sub/page` will be replaced accordingly.
      *
+     * Heads up! Pico always interprets the first parameter as name of the
+     * requested page (provided that the parameter has no value). According to
+     * that you MUST NOT call Pico with a parameter without value as first
+     * parameter (e.g. http://example.com/pico/?someBooleanParam), otherwise
+     * Pico interprets `someBooleanParam` as name of the requested page. Use
+     * `/pico/?someBooleanParam=` or `/pico/?index&someBooleanParam` instead.
+     *
      * @see    Pico::getRequestUrl()
      * @return void
      */
     protected function evaluateRequestUrl()
     {
         // use QUERY_STRING; e.g. /pico/?sub/page
-        // if you want to use rewriting, you MUST make your rules to
-        // rewrite the URLs to follow the QUERY_STRING method
-        //
-        // Note: you MUST NOT call the index page with /pico/?someBooleanParameter;
-        // use /pico/?someBooleanParameter= or /pico/?index&someBooleanParameter instead
         $pathComponent = isset($_SERVER['QUERY_STRING']) ? $_SERVER['QUERY_STRING'] : '';
-        if (($pathComponentLength = strpos($pathComponent, '&')) !== false) {
-            $pathComponent = substr($pathComponent, 0, $pathComponentLength);
+        if (!empty($pathComponent)) {
+            if (($pathComponentLength = strpos($pathComponent, '&')) !== false) {
+                $pathComponent = substr($pathComponent, 0, $pathComponentLength);
+            }
+            if (strpos($pathComponent, '=') === false) {
+                $this->requestUrl = trim(rawurldecode($pathComponent), '/');
+            }
         }
-        $this->requestUrl = (strpos($pathComponent, '=') === false) ? rawurldecode($pathComponent) : '';
-        $this->requestUrl = trim($this->requestUrl, '/');
+
+        // use REQUEST_URI (requires URL rewriting); e.g. /pico/sub/page
+        if (($this->requestUrl === null) && $this->isUrlRewritingEnabled()) {
+            $basePath = dirname($_SERVER['SCRIPT_NAME']) . '/';
+            $basePathLength = strlen($basePath);
+
+            $requestUri = $_SERVER['REQUEST_URI'];
+            if (substr($requestUri, 0, $basePathLength) === $basePath) {
+                $requestUri = substr($requestUri, $basePathLength);
+                if (($requestUriLength = strpos($requestUri, '?')) !== false) {
+                    $requestUri = substr($requestUri, 0, $requestUriLength);
+                }
+                $this->requestUrl = rtrim(rawurldecode($requestUri), '/');
+            }
+        }
     }
 
     /**
@@ -694,24 +735,29 @@ class Pico
     }
 
     /**
-     * Uses the request URL to discover the content file to serve
+     * Resolves a given file path to its corresponding content file
+     *
+     * This method also prevents `content_dir` breakouts using malicious
+     * request URLs. We don't use `realpath()`, because we neither want to
+     * check for file existance, nor prohibit symlinks which intentionally
+     * point to somewhere outside the `content_dir` folder. It is STRONGLY
+     * RECOMMENDED to use PHP's `open_basedir` feature - always, not just
+     * with Pico!
      *
      * @see    Pico::getRequestFile()
-     * @return void
+     * @param  string $requestUrl path name (likely from a URL) to resolve
+     * @return string             path to the resolved content file
      */
-    protected function discoverRequestFile()
+    public function resolveFilePath($requestUrl)
     {
         $contentDir = $this->getConfig('content_dir');
         $contentExt = $this->getConfig('content_ext');
 
-        if (empty($this->requestUrl)) {
-            $this->requestFile = $contentDir . 'index' . $contentExt;
+        if (empty($requestUrl)) {
+            return $contentDir . 'index' . $contentExt;
         } else {
-            // prevent content_dir breakouts using malicious request URLs
-            // we don't use realpath() here because we neither want to check for file existance
-            // nor prohibit symlinks which intentionally point to somewhere outside the content_dir
-            // it is STRONGLY RECOMMENDED to use open_basedir - always, not just with Pico!
-            $requestUrl = str_replace('\\', '/', $this->requestUrl);
+            // prevent content_dir breakouts
+            $requestUrl = str_replace('\\', '/', $requestUrl);
             $requestUrlParts = explode('/', $requestUrl);
 
             $requestFileParts = array();
@@ -727,31 +773,29 @@ class Pico
             }
 
             if (empty($requestFileParts)) {
-                $this->requestFile = $contentDir . 'index' . $contentExt;
-                return;
+                return $contentDir . 'index' . $contentExt;
             }
 
             // discover the content file to serve
             // Note: $requestFileParts neither contains a trailing nor a leading slash
-            $this->requestFile = $contentDir . implode('/', $requestFileParts);
-            if (is_dir($this->requestFile)) {
+            $requestFile = $contentDir . implode('/', $requestFileParts);
+            if (is_dir($requestFile)) {
                 // if no index file is found, try a accordingly named file in the previous dir
                 // if this file doesn't exist either, show the 404 page, but assume the index
                 // file as being requested (maintains backward compatibility to Pico < 1.0)
-                $indexFile = $this->requestFile . '/index' . $contentExt;
-                if (file_exists($indexFile) || !file_exists($this->requestFile . $contentExt)) {
-                    $this->requestFile = $indexFile;
-                    return;
+                $indexFile = $requestFile . '/index' . $contentExt;
+                if (file_exists($indexFile) || !file_exists($requestFile . $contentExt)) {
+                    return $indexFile;
                 }
             }
-            $this->requestFile .= $contentExt;
+            return $requestFile . $contentExt;
         }
     }
 
     /**
      * Returns the absolute path to the content file to serve
      *
-     * @see    Pico::discoverRequestFile()
+     * @see    Pico::resolveFilePath()
      * @return string|null file path
      */
     public function getRequestFile()
@@ -870,7 +914,14 @@ class Pico
         if (preg_match($pattern, $rawContent, $rawMetaMatches) && isset($rawMetaMatches[3])) {
             $yamlParser = new \Symfony\Component\Yaml\Parser();
             $meta = $yamlParser->parse($rawMetaMatches[3]);
-            $meta = ($meta !== null) ? array_change_key_case($meta, CASE_LOWER) : array();
+
+            if ($meta !== null) {
+                // the parser may return a string for non-YAML 1-liners
+                // assume that this string is the page title
+                $meta = is_array($meta) ? array_change_key_case($meta, CASE_LOWER) : array('title' => $meta);
+            } else {
+                $meta = array();
+            }
 
             foreach ($headers as $fieldId => $fieldName) {
                 $fieldName = strtolower($fieldName);
@@ -956,6 +1007,8 @@ class Pico
      */
     public function prepareFileContent($rawContent, array $meta)
     {
+        $variables = array();
+
         // remove meta header
         $metaHeaderPattern = "/^(\/(\*)|---)[[:blank:]]*(?:\r)?\n"
             . "(?:(.*?)(?:\r)?\n)?(?(2)\*\/|---)[[:blank:]]*(?:(?:\r)?\n|$)/s";
@@ -979,8 +1032,7 @@ class Pico
         $variables['%base_url%'] = rtrim($this->getBaseUrl(), '/');
 
         // replace %theme_url%
-        $themeUrl = $this->getBaseUrl() . basename($this->getThemesDir()) . '/' . $this->getConfig('theme');
-        $variables['%theme_url%'] = $themeUrl;
+        $variables['%theme_url%'] = $this->getBaseThemeUrl() . $this->getConfig('theme');
 
         // replace %meta.*%
         if (!empty($meta)) {
@@ -1269,8 +1321,10 @@ class Pico
         $this->twig->addExtension(new Twig_Extension_Debug());
         $this->twig->addExtension(new PicoTwigExtension($this));
 
-        // register link filter
+        // register link filter and the url_param and form_param functions
         $this->twig->addFilter(new Twig_SimpleFilter('link', array($this, 'getPageUrl')));
+        $this->twig->addFunction(new Twig_SimpleFunction('url_param', array($this, 'getUrlParameter')));
+        $this->twig->addFunction(new Twig_SimpleFunction('form_param', array($this, 'getFormParameter')));
 
         // register content filter
         // we pass the $pages array by reference to prevent multiple parser runs for the same page
@@ -1317,7 +1371,7 @@ class Pico
             'base_dir' => rtrim($this->getRootDir(), '/'),
             'base_url' => rtrim($this->getBaseUrl(), '/'),
             'theme_dir' => $this->getThemesDir() . $this->getConfig('theme'),
-            'theme_url' => $this->getBaseUrl() . basename($this->getThemesDir()) . '/' . $this->getConfig('theme'),
+            'theme_url' => $this->getBaseThemeUrl() . $this->getConfig('theme'),
             'rewrite_url' => $this->isUrlRewritingEnabled(),
             'site_title' => $this->getConfig('site_title'),
             'meta' => $this->meta,
@@ -1379,12 +1433,17 @@ class Pico
     /**
      * Returns the URL to a given page
      *
+     * This method can be used in Twig templates by applying the `link` filter
+     * to a string representing a page identifier.
+     *
      * @param  string       $page      identifier of the page to link to
      * @param  array|string $queryData either an array containing properties to
      *     create a URL-encoded query string from, or a already encoded string
+     * @param  boolean      $dropIndex when the last path component is "index",
+     *     then passing TRUE (default) leads to removing this path component
      * @return string                  URL
      */
-    public function getPageUrl($page, $queryData = null)
+    public function getPageUrl($page, $queryData = null, $dropIndex = true)
     {
         if (is_array($queryData)) {
             $queryData = http_build_query($queryData, '', '&');
@@ -1394,9 +1453,20 @@ class Pico
                 . (is_object($queryData) ? get_class($queryData) : gettype($queryData)) . ' given'
             );
         }
+
+        // drop "index"
+        if ($dropIndex) {
+            if ($page === 'index') {
+                $page = '';
+            } elseif (($pagePathLength = strrpos($page, '/')) !== false) {
+                if (substr($page, $pagePathLength + 1) === 'index') {
+                    $page = substr($page, 0, $pagePathLength);
+                }
+            }
+        }
+
         if (!empty($queryData)) {
-            $page = !empty($page) ? $page : 'index';
-            $queryData = $this->isUrlRewritingEnabled() ? '?' . $queryData : '&' . $queryData;
+            $queryData = ($this->isUrlRewritingEnabled() || empty($page)) ? '?' . $queryData : '&' . $queryData;
         }
 
         if (empty($page)) {
@@ -1406,6 +1476,168 @@ class Pico
         } else {
             return $this->getBaseUrl() . implode('/', array_map('rawurlencode', explode('/', $page))) . $queryData;
         }
+    }
+
+    /**
+     * Returns the URL of the themes folder of this Pico instance
+     *
+     * We assume that the themes folder is a arbitrary deep sub folder of the
+     * script's base path (i.e. the directory {@path "index.php"} is in resp.
+     * the `httpdocs` directory). Usually the script's base path is identical
+     * to {@link Pico::$rootDir}, but this may aberrate when Pico got installed
+     * as a composer dependency. However, ultimately it allows us to use
+     * {@link Pico::getBaseUrl()} as origin of the theme URL. Otherwise Pico
+     * falls back to the basename of {@link Pico::$themesDir} (i.e. assuming
+     * that `Pico::$themesDir` is `foo/bar/baz`, the base URL of the themes
+     * folder will be `baz/`; this ensures BC to Pico < 1.1). Pico's base URL
+     * always gets prepended appropriately.
+     *
+     * @return string the URL of the themes folder
+     */
+    public function getBaseThemeUrl()
+    {
+        $themeUrl = $this->getConfig('theme_url');
+        if (!empty($themeUrl)) {
+            return $themeUrl;
+        }
+
+        $basePath = dirname($_SERVER['SCRIPT_FILENAME']) . '/';
+        $basePathLength = strlen($basePath);
+        if (substr($this->getThemesDir(), 0, $basePathLength) === $basePath) {
+            $this->config['theme_url'] = $this->getBaseUrl() . substr($this->getThemesDir(), $basePathLength);
+        } else {
+            $this->config['theme_url'] = $this->getBaseUrl() . basename($this->getThemesDir()) . '/';
+        }
+
+        return $this->config['theme_url'];
+    }
+
+    /**
+     * Filters a URL GET parameter with a specified filter
+     *
+     * This method is just an alias for {@link Pico::filterVariable()}, see
+     * {@link Pico::filterVariable()} for a detailed description. It can be
+     * used in Twig templates by calling the `url_param` function.
+     *
+     * @see    Pico::filterVariable()
+     * @param  string                    $name    name of the URL GET parameter
+     *     to filter
+     * @param  int|string                $filter  the filter to apply
+     * @param  mixed|array               $options either a associative options
+     *     array to be used by the filter or a scalar default value
+     * @param  int|string|int[]|string[] $flags   flags and flag strings to
+     *     be used by the filter
+     * @return mixed                              either the filtered data,
+     *     FALSE if the filter fails, or NULL if the URL GET parameter doesn't
+     *     exist and no default value is given
+     */
+    public function getUrlParameter($name, $filter = '', $options = null, $flags = null)
+    {
+        $variable = (isset($_GET[$name]) && is_scalar($_GET[$name])) ? $_GET[$name] : null;
+        return $this->filterVariable($variable, $filter, $options, $flags);
+    }
+
+    /**
+     * Filters a HTTP POST parameter with a specified filter
+     *
+     * This method is just an alias for {@link Pico::filterVariable()}, see
+     * {@link Pico::filterVariable()} for a detailed description. It can be
+     * used in Twig templates by calling the `form_param` function.
+     *
+     * @see    Pico::filterVariable()
+     * @param  string                    $name    name of the HTTP POST
+     *     parameter to filter
+     * @param  int|string                $filter  the filter to apply
+     * @param  mixed|array               $options either a associative options
+     *     array to be used by the filter or a scalar default value
+     * @param  int|string|int[]|string[] $flags   flags and flag strings to
+     *     be used by the filter
+     * @return mixed                              either the filtered data,
+     *     FALSE if the filter fails, or NULL if the HTTP POST parameter
+     *     doesn't exist and no default value is given
+     */
+    public function getFormParameter($name, $filter = '', $options = null, $flags = null)
+    {
+        $variable = (isset($_POST[$name]) && is_scalar($_POST[$name])) ? $_POST[$name] : null;
+        return $this->filterVariable($variable, $filter, $options, $flags);
+    }
+
+    /**
+     * Filters a variable with a specified filter
+     *
+     * This method basically wraps around PHP's `filter_var()` function. It
+     * filters data by either validating or sanitizing it. This is especially
+     * useful when the data source contains unknown (or foreign) data, like
+     * user supplied input. Validation is used to validate or check if the data
+     * meets certain qualifications, but will not change the data itself.
+     * Sanitization will sanitize the data, so it may alter it by removing
+     * undesired characters. It doesn't actually validate the data! The
+     * behaviour of most filters can optionally be tweaked by flags.
+     *
+     * Heads up! Input validation is hard! Always validate your input data the
+     * most paranoid way you can imagine. Always prefer validation filters over
+     * sanitization filters; be very careful with sanitization filters, you
+     * might create cross-site scripting vulnerabilities!
+     *
+     * @see    https://secure.php.net/manual/en/function.filter-var.php
+     *     PHP's `filter_var()` function
+     * @see    https://secure.php.net/manual/en/filter.filters.validate.php
+     *     Validate filters
+     * @see    https://secure.php.net/manual/en/filter.filters.sanitize.php
+     *     Sanitize filters
+     * @param  mixed                     $variable value to filter
+     * @param  int|string                $filter   ID (int) or name (string) of
+     *     the filter to apply; if omitted, the method will return FALSE
+     * @param  mixed|array               $options  either a associative array
+     *     of options to be used by the filter (e.g. `array('default' => 42)`),
+     *     or a scalar default value that will be returned when the passed
+     *     value is NULL (optional)
+     * @param  int|string|int[]|string[] $flags    either a bitwise disjunction
+     *     of flags or a string with the significant part of a flag constant
+     *     (the constant name is the result of "FILTER_FLAG_" and the given
+     *     string in ASCII-only uppercase); you may also pass an array of flags
+     *     and flag strings (optional)
+     * @return mixed                               with a validation filter,
+     *     the method either returns the validated value or, provided that the
+     *     value wasn't valid, the given default value or FALSE; with a
+     *     sanitization filter, the method returns the sanitized value; if no
+     *     value (i.e. NULL) was given, the method always returns either the
+     *     provided default value or NULL
+     */
+    protected function filterVariable($variable, $filter = '', $options = null, $flags = null)
+    {
+        $defaultValue = null;
+        if (is_array($options)) {
+            $defaultValue = isset($options['default']) ? $options['default'] : null;
+        } elseif ($options !== null) {
+            $defaultValue = $options;
+            $options = array('default' => $defaultValue);
+        }
+
+        if ($variable === null) {
+            return $defaultValue;
+        }
+
+        $filter = !empty($filter) ? (is_string($filter) ? filter_id($filter) : (int) $filter) : false;
+        if (!$filter) {
+            return false;
+        }
+
+        $filterOptions = array('options' => $options, 'flags' => 0);
+        foreach ((array) $flags as $flag) {
+            if (is_numeric($flag)) {
+                $filterOptions['flags'] |= (int) $flag;
+            } elseif (is_string($flag)) {
+                $flag = strtoupper(preg_replace('/[^a-zA-Z0-9_]/', '', $flag));
+                if (($flag === 'NULL_ON_FAILURE') && ($filter ===  FILTER_VALIDATE_BOOLEAN)) {
+                    $filterOptions['flags'] |= FILTER_NULL_ON_FAILURE;
+                } else {
+                    $filterOptions['flags'] |= (int) constant('FILTER_FLAG_' . $flag);
+                }
+            }
+        }
+
+        return filter_var($variable, $filter, $filterOptions);
     }
 
     /**
@@ -1421,7 +1653,7 @@ class Pico
      *     or Pico::SORT_NONE to leave the result unsorted
      * @return array                 list of found files
      */
-    protected function getFiles($directory, $fileExtension = '', $order = self::SORT_ASC)
+    public function getFiles($directory, $fileExtension = '', $order = self::SORT_ASC)
     {
         $directory = rtrim($directory, '/');
         $result = array();
