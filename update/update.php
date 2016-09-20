@@ -43,7 +43,9 @@ class Update extends Update_Util{
           pclose($fp);
         }
 
-        if($msg){
+        if(is_null($msg)){
+          // 何も出力しない。なにか文字を返すと不正アプリとみなすWebフック対策
+        }elseif($msg){
           $this->sendWebhook($msg, "Update Accepted");
           echo "$msg";
         }else{
