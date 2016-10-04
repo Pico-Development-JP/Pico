@@ -39,7 +39,9 @@ Pico
 [![Freenode IRC Webchat](https://picocms.github.io/Pico/badges/pico-chat.svg)](https://webchat.freenode.net/?channels=%23picocms)
 [![Tweet Button](https://cloud.githubusercontent.com/assets/640217/11483728/b0842918-976f-11e5-9185-d53261b3125b.png)](https://twitter.com/intent/tweet?text=Pico+is+a+stupidly+simple%2C+blazing+fast%2C+flat+file+CMS.+Visit+http%3A%2F%2Fpicocms.org+and+downlaod+%23picocms+today%21+via+%40gitpicocms&amp;related=gitpicocms)
 
-Pico is a stupidly simple, blazing fast, flat file CMS. See http://picocms.org/ for more info.
+Pico is a stupidly simple, blazing fast, flat file CMS.
+
+Visit us at http://picocms.org/ and see http://picocms.org/about/ for more info.
 
 Screenshot
 -------
@@ -48,7 +50,7 @@ Screenshot
 Install
 -------
 
-You can install Pico either using a pre-bundled release or with composer. Pico is also available on [Packagist.org][] and may be included in other projects via `composer require picocms/pico`. Pico requires PHP 5.3+
+You can install Pico either using a pre-bundled release or with composer. Pico is also available on [Packagist.org][] and may be included in other projects via `composer require picocms/pico`. Pico requires PHP 5.3.6+
 
 #### Using a pre-bundled release
 
@@ -124,9 +126,6 @@ When the docs can't answer your question, you can get help by joining us on [#pi
 
 Contributing
 ------------
-
-<!--flippa verify-->
-[![I Love Open Source](http://www.iloveopensource.io/images/logo-lightbg.png)](http://www.iloveopensource.io/projects/524c55dcca7964c617000756)
 
 You want to contribute to Pico? We really appreciate that! You can help make Pico better by [contributing code][PullRequests] or [reporting issues][Issues], but please take note of our [contribution guidelines][ContributionGuidelines]. In general you can contribute in three different areas:
 
