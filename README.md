@@ -33,11 +33,10 @@ crontabに以下の行を追加してください。
 Pico
 ====
 
-[![License](https://picocms.github.io/Pico/badges/pico-license.svg)](https://github.com/picocms/Pico/blob/master/LICENSE.md)
-[![Version](https://picocms.github.io/Pico/badges/pico-version.svg)](https://github.com/picocms/Pico/releases/latest)
+[![License](https://picocms.github.io/badges/pico-license.svg)](https://github.com/picocms/Pico/blob/master/LICENSE.md)
+[![Version](https://picocms.github.io/badges/pico-version.svg)](https://github.com/picocms/Pico/releases/latest)
 [![Build Status](https://api.travis-ci.org/picocms/Pico.svg)](https://travis-ci.org/picocms/Pico)
-[![Freenode IRC Webchat](https://picocms.github.io/Pico/badges/pico-chat.svg)](https://webchat.freenode.net/?channels=%23picocms)
-[![Tweet Button](https://cloud.githubusercontent.com/assets/640217/11483728/b0842918-976f-11e5-9185-d53261b3125b.png)](https://twitter.com/intent/tweet?text=Pico+is+a+stupidly+simple%2C+blazing+fast%2C+flat+file+CMS.+Visit+http%3A%2F%2Fpicocms.org+and+downlaod+%23picocms+today%21+via+%40gitpicocms&amp;related=gitpicocms)
+[![Freenode IRC Webchat](https://picocms.github.io/badges/pico-chat.svg)](https://webchat.freenode.net/?channels=%23picocms)
 
 Pico is a stupidly simple, blazing fast, flat file CMS.
 
@@ -114,7 +113,7 @@ Getting Help
 ------------
 
 #### Getting Help as a user
-If you want to get started using Pico, please refer to our [user docs][HelpUserDocs]. Please read the [upgrade notes][HelpUpgrade] if you want to upgrade from Pico 0.8 or 0.9 to Pico 1.0. You can find officially supported plugins and themes on [our website][OfficialPlugins]. A greater choice of third-party plugins and themes can be found in our [Wiki][] on the [plugins][WikiPlugins] or [themes][WikiThemes] pages respectively. If you want to create your own plugin or theme, please refer to the "Getting Help as a developer" section below.
+If you want to get started using Pico, please refer to our [user docs][HelpUserDocs]. Please read the [upgrade notes][HelpUpgrade] if you want to upgrade from Pico 0.8 or 0.9 to Pico 1.0. You can find officially supported [plugins][OfficialPlugins] and [themes][OfficialThemes] on our website. A greater choice of third-party plugins and themes can be found in our [Wiki][] on the [plugins][WikiPlugins] or [themes][WikiThemes] pages respectively. If you want to create your own plugin or theme, please refer to the "Getting Help as a developer" section below.
 
 #### Getting Help as a developer
 If you're a developer, please refer to the "Contributing" section below and our [contribution guidelines][ContributionGuidelines]. To get you started with creating a plugin or theme, please read the [dev docs on our website][HelpDevDocs].
@@ -129,7 +128,7 @@ Contributing
 
 You want to contribute to Pico? We really appreciate that! You can help make Pico better by [contributing code][PullRequests] or [reporting issues][Issues], but please take note of our [contribution guidelines][ContributionGuidelines]. In general you can contribute in three different areas:
 
-1. Plugins & Themes: You're a plugin developer or theme designer? We love you guys! You can find tons of information about how to develop plugins and themes at http://picocms.org/development/. If you have created a plugin or theme, please add it to our [Wiki][], either on the [plugins][WikiPlugins] or [themes page][WikiThemes]. Doing so, we may select and promote your plugin or theme on [our website][OfficialPlugins] as officially supported!
+1. Plugins & Themes: You're a plugin developer or theme designer? We love you guys! You can find tons of information about how to develop plugins and themes at http://picocms.org/development/. If you have created a plugin or theme, please add it to our [Wiki][], either on the [plugins][WikiPlugins] or [themes][WikiThemes] page. You may also [Submit][] it to our website, where it'll be displayed on the official [plugin][OfficialPlugins] or [theme][OfficialThemes] pages!
 
 2. Documentation: We always appreciate people improving our documentation. You can either improve the [inline user docs][EditInlineDocs] or the more extensive [user docs on our website][EditUserDocs]. You can also improve the [docs for plugin and theme developers][EditDevDocs]. Simply fork Pico from https://github.com/picocms/Pico, change the Markdown files and open a [pull request][PullRequests].
 
@@ -143,7 +142,9 @@ You want to contribute to Pico? We really appreciate that! You can help make Pic
 [HelpUpgrade]: http://picocms.org/in-depth/upgrade/
 [HelpUserDocs]: http://picocms.org/docs/
 [HelpDevDocs]: http://picocms.org/development/
-[OfficialPlugins]: http://picocms.org/customization/
+[Submit]: http://picocms.org/in-depth/submission_guidelines
+[OfficialPlugins]: http://picocms.org/plugins/
+[OfficialThemes]: http://picocms.org/themes/
 [Wiki]: https://github.com/picocms/Pico/wiki
 [WikiPlugins]: https://github.com/picocms/Pico/wiki/Pico-Plugins
 [WikiThemes]: https://github.com/picocms/Pico/wiki/Pico-Themes
@@ -152,5 +153,5 @@ You want to contribute to Pico? We really appreciate that! You can help make Pic
 [PullRequests]: https://github.com/picocms/Pico/pulls
 [ContributionGuidelines]: https://github.com/picocms/Pico/blob/master/CONTRIBUTING.md
 [EditInlineDocs]: https://github.com/picocms/Pico/edit/master/content-sample/index.md
-[EditUserDocs]: https://github.com/picocms/Pico/tree/gh-pages/_docs
-[EditDevDocs]: https://github.com/picocms/Pico/tree/gh-pages/_development
+[EditUserDocs]: https://github.com/picocms/picocms.github.io/tree/master/_docs
+[EditDevDocs]: https://github.com/picocms/picocms.github.io/tree/master/_development

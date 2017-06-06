@@ -4,14 +4,20 @@ php:
   - 5.4
   - 5.5
   - 5.6
-  - 7
-  - hhvm
+  - 7.0
+  - 7.1
   - nightly
+  - hhvm
+  - hhvm-nightly
 
 matrix:
   allow_failures:
     - php: nightly
+    - php: hhvm-nightly
   fast-finish: true
+
+notifications:
+  irc: "chat.freenode.net#picocms"
 
 install:
   - composer install
