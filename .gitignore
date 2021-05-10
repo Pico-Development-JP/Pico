@@ -12,26 +12,15 @@ desktop.ini
 
 # Composer
 /composer.lock
-/composer.phar
 /vendor
 
 # Build system
-/_build/phpdoc
-/_build/phpdoc.cache
-/_build/deploy-*.git
+/.build/build
+/.build/deploy
+/.build/ci-tools
+/pico-release-*.tar.gz
+/pico-release-*.zip
 
-# User config
-/config/config.php
-
-# User themes
-/themes/*
-!/themes/default
-
-# User plugins
-/plugins/*
-!/plugins/0?-*
-!/plugins/1?-*
-!/plugins/DummyPlugin.php
-
-# User content
-/content
+# phpDocumentor
+/.build/phpdoc
+/.build/phpdoc.cache
